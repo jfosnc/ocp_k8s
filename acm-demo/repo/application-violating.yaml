@@ -11,7 +11,7 @@ spec:
   source:
     repoURL: https://github.com/jfosnc/ocp_k8s.git
     targetRevision: HEAD
-    path: repo/workloads/violating
+    path: workloads/violating
   syncPolicy:
     automated:
       prune: true

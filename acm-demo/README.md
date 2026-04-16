@@ -185,7 +185,9 @@ oc --kubeconfig "$SPOKE_KUBECONFIG" apply -f acm-demo/spoke/03-demo-gitops-rbac.
 
 Push the contents of `acm-demo/repo` to a Git repository that `sno2` can reach.
 
-Then update `repoURL` in:
+The included `Application` manifests assume that repository root is the content of `acm-demo/repo`, so only `repoURL` should need to change.
+
+Update `repoURL` in:
 
 - [repo/application-compliant.yaml](./repo/application-compliant.yaml)
 - [repo/application-violating.yaml](./repo/application-violating.yaml)
