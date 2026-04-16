@@ -25,24 +25,24 @@ This is the important nuance: ACM governance is selecting where the policies exi
 
 - ACM is installed on `sno1`
 - the managed cluster in ACM is named `sno2`
-- your ACM policy namespace is bound to the `global` `ManagedClusterSet`
-- you will publish the `acm-demo/repo` content to a Git repository reachable from `sno2`
+- the ACM policy namespace is bound to the `global` `ManagedClusterSet`
+- publish the `acm-demo/repo` content to a Git repository reachable from `sno2`
 
-If your `ManagedClusterSet` is not `global`, update [hub/02-managedclustersetbinding.yaml](./hub/02-managedclustersetbinding.yaml).
+If the `ManagedClusterSet` is not `global`, update [hub/02-managedclustersetbinding.yaml](./hub/02-managedclustersetbinding.yaml).
 
 ## Shared-network prerequisite
 
-This repo now assumes the shared libvirt layout documented in [README-SNO-multi.md](/home/jufoster/Documents/workspace/SNO/README-SNO-multi.md:1):
+This version of the demo assumes libvirt hosted Single Node OpenShift
 
 - `sno1` API and node IP: `192.168.130.11`
 - `sno2` API and node IP: `192.168.130.12`
 - shared libvirt network: `sno-lab-net`
 
-If you are still using the older dual-network lab, rebuild the clusters onto the shared network before following this ACM flow.
+
 
 ## Kubeconfig shortcuts
 
-From this repo root:
+From repo root:
 
 ```bash
 export HUB_KUBECONFIG="$PWD/cluster1/auth/kubeconfig"
@@ -72,11 +72,6 @@ Then verify from the hub cluster:
 oc --kubeconfig "$HUB_KUBECONFIG" exec -n openshift-dns "$(oc --kubeconfig "$HUB_KUBECONFIG" get pod -n openshift-dns -l dns.operator.openshift.io/daemonset-dns=default -o name | head -n1)" -c dns -- nslookup api.sno2.lab.local 192.168.130.1
 ```
 
-After that, retry the import. On the shared-network layout, `sno1` and `sno2` should be able to reach each other's APIs directly, so no extra host routing helper is needed.
-
-If a lookup returns duplicate answers, the usual cause is libvirt `dnsmasq` inheriting records from the host `/etc/hosts`. The network definition in [scripts/03-create_networks.sh](/home/jufoster/Documents/workspace/SNO/scripts/03-create_networks.sh:1) sets `dnsmasq` option `no-hosts` to prevent that leak.
-
-The simplest path in your current environment is the ACM console import wizard on `sno1`:
 
 1. Open the ACM console on the hub.
 2. Go to cluster import.
@@ -118,8 +113,7 @@ oc --kubeconfig "$SPOKE_KUBECONFIG" get ns openshift-gitops
 oc --kubeconfig "$SPOKE_KUBECONFIG" -n openshift-gitops get pods
 ```
 
-OpenShift GitOps must be installed with an all-namespaces `OperatorGroup`, so [01-operatorgroup.yaml](./spoke/gitops-operator/01-operatorgroup.yaml) intentionally uses `spec: {}`.
-
+OpenShift GitOps must be installed with an all-namespaces `OperatorGroup`.
 ## 4. Confirm `sno2` is managed by ACM
 
 On the hub, make sure import finished:
@@ -138,7 +132,7 @@ This label is the on/off switch for enforcement:
 oc --kubeconfig "$HUB_KUBECONFIG" label managedcluster sno2 demo-policy=enabled --overwrite
 ```
 
-If you later want to disable enforcement for that cluster:
+To disable enforcement for that cluster:
 
 ```bash
 oc --kubeconfig "$HUB_KUBECONFIG" label managedcluster sno2 demo-policy-
@@ -191,12 +185,7 @@ oc --kubeconfig "$SPOKE_KUBECONFIG" apply -f acm-demo/spoke/03-demo-gitops-rbac.
 
 Push the contents of `acm-demo/repo` to a Git repository that `sno2` can reach.
 
-The included `Application` manifests assume that repository root is the content of `acm-demo/repo`, so only `repoURL` should need to change.
-
-Update `repoURL` in:
-
-- [repo/application-compliant.yaml](./repo/application-compliant.yaml)
-- [repo/application-violating.yaml](./repo/application-violating.yaml)
+The included `Application` manifests assume that repository root is the content of `acm-demo/repo`
 
 ## 10. Apply the compliant Argo CD application on the spoke
 
