@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: approved-demo
+  namespace: demo-gitops
+  labels:
+    app: approved-demo
+    policy.demo.openshift.io/approved: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: approved-demo
+  template:
+    metadata:
+      labels:
+        app: approved-demo
+    spec:
+      containers:
+      - name: approved-demo
+        image: registry.k8s.io/pause:3.10

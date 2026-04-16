@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: violating-demo
+  namespace: demo-gitops
+  labels:
+    app: violating-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: violating-demo
+  template:
+    metadata:
+      labels:
+        app: violating-demo
+    spec:
+      containers:
+      - name: violating-demo
+        image: registry.k8s.io/pause:3.10

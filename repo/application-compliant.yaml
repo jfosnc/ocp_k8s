@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: approved-demo
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: demo-gitops
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    repoURL: https://example.com/your-gitops-repo.git
+    targetRevision: HEAD
+    path: workloads/compliant
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
