@@ -4,3 +4,5 @@
 # OpenShift cluster auth secrets
 cluster1/auth/
 cluster2/auth/
+cluster1/
+cluster2/
