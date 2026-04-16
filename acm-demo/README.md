@@ -49,6 +49,16 @@ export HUB_KUBECONFIG="$PWD/cluster1/auth/kubeconfig"
 export SPOKE_KUBECONFIG="$PWD/cluster2/auth/kubeconfig"
 ```
 
+## Demo scripts
+
+The scripts in [scripts](./scripts) mirror the numbered sections in this README.
+
+- Run section scripts directly, for example `acm-demo/scripts/06-apply-governance.sh`.
+- Override kubeconfigs with `HUB_KUBECONFIG=...` and `SPOKE_KUBECONFIG=...` if needed.
+- Section 2 accepts `--import-manifest /path/to/import.yaml`.
+- Section 9 accepts `--repo-url` and optional `--revision`.
+- Use `acm-demo/scripts/90-reset-demo-state.sh` to return to a clean demo baseline with enforcement enabled, governance applied, RBAC present, no compliant or violating Argo CD apps deployed, and `drift-demo` reconciled back to `replicas: 1`.
+
 ## 1. Verify cluster access
 
 ```bash
@@ -183,9 +193,22 @@ oc --kubeconfig "$SPOKE_KUBECONFIG" apply -f acm-demo/spoke/03-demo-gitops-rbac.
 
 ## 9. Publish the GitOps content
 
-Push the contents of `acm-demo/repo` to a Git repository that `sno2` can reach.
+The default manifests currently target this repository layout, so their `path`
+values include `acm-demo/repo/...` under `https://github.com/jfosnc/ocp_k8s.git`.
 
-The included `Application` manifests assume that repository root is the content of `acm-demo/repo`
+If you keep using this monorepo layout but want a different Git location or
+revision, use:
+
+```bash
+acm-demo/scripts/09-configure-demo-repo.sh --repo-url https://example.com/your/monorepo.git --revision HEAD
+```
+
+If you publish only the contents of `acm-demo/repo` to a separate repository,
+strip the path prefix with:
+
+```bash
+acm-demo/scripts/09-configure-demo-repo.sh --repo-url https://example.com/your/demo-repo.git --path-prefix ""
+```
 
 ## 10. Apply the compliant Argo CD application on the spoke
 
