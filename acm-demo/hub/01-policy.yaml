@@ -1,0 +1,80 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: deny-unapproved-deployments
+  namespace: acm-policies
+  annotations:
+    policy.open-cluster-management.io/standards: NIST
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: Admission Control
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: demo-gitops-namespace
+      spec:
+        remediationAction: enforce
+        severity: medium
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: demo-gitops
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: require-approved-deployment-label
+      spec:
+        pruneObjectBehavior: DeleteIfCreated
+        remediationAction: enforce
+        severity: high
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: admissionregistration.k8s.io/v1
+            kind: ValidatingAdmissionPolicy
+            metadata:
+              name: require-approved-deployment-label
+            spec:
+              failurePolicy: Fail
+              matchConstraints:
+                resourceRules:
+                - apiGroups:
+                  - apps
+                  apiVersions:
+                  - v1
+                  operations:
+                  - CREATE
+                  - UPDATE
+                  resources:
+                  - deployments
+              validations:
+              - expression: object.metadata.namespace != 'demo-gitops' || (has(object.metadata.labels) && 'policy.demo.openshift.io/approved' in object.metadata.labels && object.metadata.labels['policy.demo.openshift.io/approved'] == 'true')
+                message: "Deployments in namespace demo-gitops must include label policy.demo.openshift.io/approved=true"
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: require-approved-deployment-label-binding
+      spec:
+        pruneObjectBehavior: DeleteIfCreated
+        remediationAction: enforce
+        severity: high
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: admissionregistration.k8s.io/v1
+            kind: ValidatingAdmissionPolicyBinding
+            metadata:
+              name: require-approved-deployment-label-binding
+            spec:
+              policyName: require-approved-deployment-label
+              validationActions:
+              - Deny
