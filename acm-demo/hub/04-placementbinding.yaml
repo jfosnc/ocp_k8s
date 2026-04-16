@@ -11,3 +11,6 @@ subjects:
 - apiGroup: policy.open-cluster-management.io
   kind: Policy
   name: deny-unapproved-deployments
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: enforce-drift-demo

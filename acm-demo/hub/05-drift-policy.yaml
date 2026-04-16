@@ -1,0 +1,46 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: enforce-drift-demo
+  namespace: acm-policies
+  annotations:
+    policy.open-cluster-management.io/standards: NIST
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: Configuration Drift
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: drift-demo-deployment
+      spec:
+        pruneObjectBehavior: DeleteIfCreated
+        remediationAction: enforce
+        severity: medium
+        object-templates:
+        - complianceType: musthave
+          objectDefinition:
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: drift-demo
+              namespace: demo-gitops
+              labels:
+                app: drift-demo
+                policy.demo.openshift.io/approved: "true"
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: drift-demo
+              template:
+                metadata:
+                  labels:
+                    app: drift-demo
+                spec:
+                  containers:
+                  - name: drift-demo
+                    image: registry.k8s.io/pause:3.10

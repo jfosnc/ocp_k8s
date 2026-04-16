@@ -11,13 +11,15 @@ This demo uses:
 ## What this demonstrates
 
 1. `sno2` is imported into ACM and labeled to receive an admission policy.
-2. ACM distributes a policy to labeled clusters only.
-3. The policy creates a `ValidatingAdmissionPolicy` on the spoke that rejects `Deployment` objects in the demo namespace unless they carry an approval label.
-4. Argo CD on the spoke pulls manifests from Git.
-5. A compliant app syncs successfully.
-6. A violating app is denied by admission and the Argo CD sync fails.
+2. ACM distributes policies to labeled clusters only.
+3. One policy creates a `ValidatingAdmissionPolicy` on the spoke that rejects `Deployment` objects in the demo namespace unless they carry an approval label.
+4. A second policy creates an ACM-managed demo `Deployment` on the spoke with `replicas: 1`.
+5. If that ACM-managed `Deployment` drifts, ACM reconciles it back to the declared state.
+6. Argo CD on the spoke pulls manifests from Git.
+7. A compliant app syncs successfully.
+8. A violating app is denied by admission and the Argo CD sync fails.
 
-This is the important nuance: ACM governance is selecting where the policy exists, and the Kubernetes admission layer on the spoke is what actively blocks the bad deployment.
+This is the important nuance: ACM governance is selecting where the policies exist, the Kubernetes admission layer on the spoke is what actively blocks the bad deployment, and ACM configuration policy remediation is what fixes the drifted replica count.
 
 ## Assumptions
 
@@ -147,6 +149,7 @@ oc --kubeconfig "$HUB_KUBECONFIG" label managedcluster sno2 demo-policy-
 ```bash
 oc --kubeconfig "$HUB_KUBECONFIG" apply -f acm-demo/hub/00-namespace.yaml
 oc --kubeconfig "$HUB_KUBECONFIG" apply -f acm-demo/hub/01-policy.yaml
+oc --kubeconfig "$HUB_KUBECONFIG" apply -f acm-demo/hub/05-drift-policy.yaml
 oc --kubeconfig "$HUB_KUBECONFIG" apply -f acm-demo/hub/02-managedclustersetbinding.yaml
 oc --kubeconfig "$HUB_KUBECONFIG" apply -f acm-demo/hub/03-placement.yaml
 oc --kubeconfig "$HUB_KUBECONFIG" apply -f acm-demo/hub/04-placementbinding.yaml
@@ -157,14 +160,16 @@ Check policy status:
 ```bash
 oc --kubeconfig "$HUB_KUBECONFIG" -n acm-policies get policy
 oc --kubeconfig "$HUB_KUBECONFIG" -n acm-policies describe policy deny-unapproved-deployments
+oc --kubeconfig "$HUB_KUBECONFIG" -n acm-policies describe policy enforce-drift-demo
 ```
 
-## 7. Verify the admission policy landed on `sno2`
+## 7. Verify the ACM-managed resources landed on `sno2`
 
 ```bash
 oc --kubeconfig "$SPOKE_KUBECONFIG" get validatingadmissionpolicy
 oc --kubeconfig "$SPOKE_KUBECONFIG" get validatingadmissionpolicybinding
 oc --kubeconfig "$SPOKE_KUBECONFIG" get ns demo-gitops
+oc --kubeconfig "$SPOKE_KUBECONFIG" get deployment drift-demo -n demo-gitops
 ```
 
 You should see:
@@ -172,6 +177,7 @@ You should see:
 - `require-approved-deployment-label`
 - `require-approved-deployment-label-binding`
 - namespace `demo-gitops`
+- deployment `drift-demo` with `replicas: 1`
 
 ## 8. Grant the Argo CD application controller access to the demo namespace
 
@@ -237,7 +243,32 @@ oc --kubeconfig "$SPOKE_KUBECONFIG" apply -f acm-demo/repo/workloads/violating/d
 
 That direct apply should be rejected by the same admission policy.
 
-## 12. Show the label-driven switch
+## 12. Show ACM drift remediation
+
+The drift demo uses a separate ACM-managed `Deployment` so there is no ambiguity with Argo CD automated sync behavior.
+
+Check the starting replica count:
+
+```bash
+oc --kubeconfig "$SPOKE_KUBECONFIG" get deployment drift-demo -n demo-gitops
+```
+
+Change it to an incorrect value:
+
+```bash
+oc --kubeconfig "$SPOKE_KUBECONFIG" scale deployment/drift-demo -n demo-gitops --replicas=3
+```
+
+Watch ACM remediate it back to the declared state:
+
+```bash
+oc --kubeconfig "$SPOKE_KUBECONFIG" get deployment drift-demo -n demo-gitops -w
+oc --kubeconfig "$HUB_KUBECONFIG" -n acm-policies describe policy enforce-drift-demo
+```
+
+The deployment should briefly show `replicas: 3` and then return to `replicas: 1` after the ACM policy controller reconciles it.
+
+## 13. Show the label-driven switch
 
 Remove the label from the managed cluster on the hub:
 
@@ -255,14 +286,15 @@ oc --kubeconfig "$HUB_KUBECONFIG" label managedcluster sno2 demo-policy=enabled 
 
 This is the clean demo story:
 
-- cluster label present: cluster receives the blocking policy
-- cluster label absent: cluster does not receive the blocking policy
+- cluster label present: cluster receives the blocking policy and the drift-remediation policy
+- cluster label absent: cluster does not receive either policy
 
-The admission policy templates in [hub/01-policy.yaml](./hub/01-policy.yaml) use `pruneObjectBehavior: DeleteIfCreated` so ACM removes the previously enforced admission objects when the label is taken away.
+The admission policy templates in [hub/01-policy.yaml](./hub/01-policy.yaml) and the `Deployment` template in [hub/05-drift-policy.yaml](./hub/05-drift-policy.yaml) use `pruneObjectBehavior: DeleteIfCreated` so ACM removes previously enforced managed resources when the label is taken away.
 
 ## Notes
 
 - The policy is scoped only to the `demo-gitops` namespace to keep the blast radius small.
 - If you want to block by image registry, replica count, or namespace naming instead, change the CEL expression in [hub/01-policy.yaml](./hub/01-policy.yaml).
+- The drift demo uses a separate ACM-managed `Deployment` rather than the Argo CD `approved-demo` application because [repo/application-compliant.yaml](./repo/application-compliant.yaml) enables automated self-heal.
 - You can later move the GitOps operator installation into ACM as a separate policy, but for the first demo it is simpler to install GitOps on `sno2` first and use ACM only for the enforcement policy.
 - In the shared-network libvirt lab, ACM import is much simpler because both clusters can reach each other's APIs directly on `192.168.130.0/24`.
