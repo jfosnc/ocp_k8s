@@ -1,1 +1,6 @@
+#Codex config
 .codex
+
+# OpenShift cluster auth secrets
+cluster1/auth/
+cluster2/auth/
